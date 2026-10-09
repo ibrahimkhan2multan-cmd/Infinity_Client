@@ -4,44 +4,51 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapp"
+    namespace = "com.infinity.launcher"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.myapp"
+        applicationId = "com.infinity.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner =
+            "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
             val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-            val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-            val keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
 
-            if (keystorePath != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
+            if (
+                keystorePath != null &&
+                keystorePassword != null &&
+                keyAliasValue != null &&
+                keyPasswordValue != null
+            ) {
                 storeFile = file(keystorePath)
                 storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
             }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
         }
+
         debug {
             applicationIdSuffix = ".debug"
         }
