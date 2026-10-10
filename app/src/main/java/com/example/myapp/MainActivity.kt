@@ -1,423 +1,414 @@
+
 package com.infinity.launcher
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
-import android.view.ViewGroup
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import com.google.android.material.button.MaterialButton
 
 class MainActivity : AppCompatActivity() {
 
     private val prefs by lazy {
-        getSharedPreferences("infinity_launcher", MODE_PRIVATE)
+        getSharedPreferences("infinity_client_settings", MODE_PRIVATE)
     }
 
-    private val minecraftPackage = "com.mojang.minecraftpe"
-    private var selectedPackage: String
-        get() = prefs.getString("minecraft_package", minecraftPackage)
-            ?: minecraftPackage
-        set(value) {
-            prefs.edit().putString("minecraft_package", value).apply()
-        }
-
     private lateinit var content: LinearLayout
+
+    private val purple = Color.rgb(176, 75, 255)
+    private val background = Color.rgb(13, 10, 24)
+    private val panel = Color.rgb(30, 22, 47)
+    private val white = Color.rgb(246, 241, 255)
+    private val muted = Color.rgb(174, 160, 194)
 
     private val packPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             if (uri != null) {
-                importPack(uri)
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                    // Some document providers do not support persistent permissions.
+                }
+                prefs.edit().putString("last_imported_pack_uri", uri.toString()).apply()
+                Toast.makeText(
+                    this,
+                    "Pack selected. Import it through Minecraft if Android offers that option.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = background
+        window.navigationBarColor = background
+        window.decorView.systemUiVisibility = 0
         showHome()
     }
 
-    private fun showHome() {
-        content = createScreen()
-        addTitle("INFINITY'S CLIENT")
-        addSubtitle("BEDROCK EDITION • ANDROID")
+    private fun createPage(title: String, subtitle: String): LinearLayout {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(background)
+            isFillViewport = true
+        }
 
-        addButton("PLAY MINECRAFT") {
+        content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(22), dp(20), dp(28))
+        }
+
+        scroll.addView(content)
+        setContentView(scroll)
+
+        addText(
+            title,
+            28f,
+            white,
+            bold = true,
+            bottom = 6
+        )
+        addText(subtitle, 14f, muted, bottom = 20)
+
+        return content
+    }
+
+    private fun showHome() {
+        createPage(
+            "INFINITY'S CLIENT",
+            "BEDROCK EDITION  •  ANDROID LAUNCHER"
+        )
+
+        addPanelText(
+            "WELCOME BACK",
+            "Your launcher settings are saved on this device. Choose a section below."
+        )
+
+        addButton("▶   PLAY MINECRAFT") {
             launchMinecraft()
         }
 
-        addButton("CLIENT SETUP") {
-            showClientSetup()
-        }
-
-        addButton("CLIENT MENU") {
+        addButton("✦   CLIENT MENU") {
             showClientMenu()
         }
 
-        addButton("HUD EDITOR") {
+        addButton("▦   HUD EDITOR") {
             showHudEditor()
         }
 
-        addButton("SELECT INSTALLED GAME") {
-            selectMinecraftApp()
-        }
-
-        addButton("IMPORT CLIENT PACK") {
-            packPicker.launch(
-                arrayOf(
-                    "application/octet-stream",
-                    "application/zip",
-                    "*/*"
-                )
-            )
-        }
-
-        addButton("SETTINGS") {
+        addButton("⚙   SETTINGS") {
             showSettings()
         }
 
-        addFooter("Made for Minecraft Bedrock")
-        setContentView(makeScrollable(content))
-    }
+        addButton("＋   SELECT / IMPORT PACK") {
+            showPackOptions()
+        }
 
-    private fun showClientSetup() {
-        content = createScreen()
-        addTitle("CLIENT SETUP")
-        addSubtitle("Prepare your Minecraft client")
-
-        addInfo(
-            "1. Import a compatible .mcpack resource pack.\n\n" +
-            "2. Minecraft should open its pack-import screen.\n\n" +
-            "3. In Minecraft, activate the pack in the appropriate " +
-            "Resource Packs settings.\n\n" +
-            "4. Return here and tap PLAY MINECRAFT."
+        addText(
+            "Launcher-side settings do not automatically modify Minecraft gameplay.",
+            12f,
+            muted,
+            top = 18
         )
-
-        addButton("IMPORT .MCPACK") {
-            packPicker.launch(
-                arrayOf(
-                    "application/octet-stream",
-                    "application/zip",
-                    "*/*"
-                )
-            )
-        }
-
-        addButton("OPEN MINECRAFT") {
-            launchMinecraft()
-        }
-
-        addButton("BACK") {
-            showHome()
-        }
-
-        setContentView(makeScrollable(content))
     }
 
     private fun showClientMenu() {
-        content = createScreen()
-        addTitle("CLIENT MENU")
-        addSubtitle("Launcher-side preferences")
-
-        addToggle("FPS HUD", "fps", true)
-        addToggle("CPS HUD", "cps", false)
-        addToggle("Coordinates HUD", "coordinates", true)
-        addToggle("Keystrokes HUD", "keystrokes", false)
-        addToggle("Ping HUD", "ping", false)
-        addToggle("Zoom", "zoom", false)
-        addToggle("Fullbright", "fullbright", false)
-        addToggle("Hitbox display", "hitbox", false)
-
-        addInfo(
-            "These switches save your preferences in the launcher. " +
-            "They do not activate in-game features by themselves; " +
-            "each feature needs a compatible Minecraft-side implementation."
+        createPage(
+            "CLIENT MENU",
+            "Toggle and save your preferred client options."
         )
 
-        addButton("BACK") {
-            showHome()
-        }
+        addButton("←   BACK TO HOME") { showHome() }
 
-        setContentView(makeScrollable(content))
+        addPanelText(
+            "FEATURE SETTINGS",
+            "These switches save your preferences inside Infinity's Client. In-game effects require a separate supported integration."
+        )
+
+        addSwitch("FPS Counter", "fps", true)
+        addSwitch("CPS Counter", "cps", false)
+        addSwitch("Coordinates", "coordinates", true)
+        addSwitch("Keystrokes", "keystrokes", false)
+        addSwitch("Ping Display", "ping", false)
+        addSwitch("Zoom", "zoom", false)
+        addSwitch("Fullbright", "fullbright", false)
+        addSwitch("Hitbox Display", "hitbox", false)
+        addSwitch("Armor HUD", "armor_hud", false)
+        addSwitch("Inventory HUD", "inventory_hud", false)
+        addSwitch("Custom Crosshair", "custom_crosshair", false)
+
+        addButton("SAVE SETTINGS") {
+            Toast.makeText(this, "Settings are saved automatically.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showHudEditor() {
-        content = createScreen()
-        addTitle("HUD EDITOR")
-        addSubtitle("Infinity HUD")
-
-        addInfo(
-            "HUD layout editing will work after a compatible " +
-            "Minecraft-side HUD implementation is added.\n\n" +
-            "Your current launcher can save feature preferences, " +
-            "but it cannot reposition Minecraft's in-game HUD directly."
+        createPage(
+            "HUD EDITOR",
+            "Choose which HUD elements you want enabled."
         )
 
-        addButton("BACK") {
-            showHome()
-        }
+        addButton("←   BACK TO HOME") { showHome() }
 
-        setContentView(makeScrollable(content))
+        addPanelText(
+            "HUD OPTIONS",
+            "This screen stores your layout preferences in the launcher. It does not draw overlays over Minecraft yet."
+        )
+
+        addSwitch("Coordinates HUD", "hud_coordinates", true)
+        addSwitch("FPS HUD", "hud_fps", true)
+        addSwitch("CPS HUD", "hud_cps", false)
+        addSwitch("Ping HUD", "hud_ping", false)
+        addSwitch("Keystrokes HUD", "hud_keystrokes", false)
+        addSwitch("Armor HUD", "hud_armor", false)
+        addSwitch("Inventory HUD", "hud_inventory", false)
+
+        addButton("RESET HUD OPTIONS") {
+            AlertDialog.Builder(this)
+                .setTitle("Reset HUD options?")
+                .setMessage("Restore the default HUD preferences?")
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("RESET") { _, _ ->
+                    val keys = listOf(
+                        "hud_coordinates", "hud_fps", "hud_cps",
+                        "hud_ping", "hud_keystrokes", "hud_armor",
+                        "hud_inventory"
+                    )
+                    prefs.edit().apply {
+                        keys.forEach { remove(it) }
+                        apply()
+                    }
+                    showHudEditor()
+                }
+                .show()
+        }
     }
 
     private fun showSettings() {
-        content = createScreen()
-        addTitle("SETTINGS")
-        addSubtitle("Launcher configuration")
-
-        addInfo("Selected Minecraft package:\n$selectedPackage")
-
-        addButton("USE DEFAULT MINECRAFT") {
-            selectedPackage = minecraftPackage
-            toast("Default Minecraft package selected")
-            showSettings()
-        }
-
-        addButton("SELECT INSTALLED GAME") {
-            selectMinecraftApp()
-        }
-
-        addButton("BACK") {
-            showHome()
-        }
-
-        setContentView(makeScrollable(content))
-    }
-
-    private fun selectMinecraftApp() {
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-
-        val activities = packageManager.queryIntentActivities(
-            intent,
-            PackageManager.MATCH_ALL
+        createPage(
+            "SETTINGS",
+            "Infinity's Client launcher preferences."
         )
 
-        val candidates = activities
-            .filter {
-                val packageName = it.activityInfo.packageName
-                packageName != packageNameOfLauncher()
-            }
-            .sortedBy {
-                it.loadLabel(packageManager).toString()
-            }
+        addButton("←   BACK TO HOME") { showHome() }
 
-        if (candidates.isEmpty()) {
-            toast("No launchable apps found")
-            return
+        addPanelText(
+            "LAUNCHER",
+            "App version: 1.1\nMinecraft target: Bedrock 1.26.33.1"
+        )
+
+        addSwitch("Remember selected options", "remember_options", true)
+
+        addButton("CLEAR SAVED CLIENT OPTIONS") {
+            AlertDialog.Builder(this)
+                .setTitle("Clear client options?")
+                .setMessage("This resets the saved feature switches in the launcher.")
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("CLEAR") { _, _ ->
+                    prefs.edit().clear().apply()
+                    showSettings()
+                }
+                .show()
         }
 
-        val labels = candidates.map {
-            "${it.loadLabel(packageManager)} (${it.activityInfo.packageName})"
-        }.toTypedArray()
+        addText(
+            "Do not uninstall Minecraft to use this launcher. Your worlds belong to Minecraft, not this app.",
+            12f,
+            muted,
+            top = 18
+        )
+    }
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Select Minecraft")
-            .setItems(labels) { _, which ->
-                selectedPackage = candidates[which].activityInfo.packageName
-                toast("Selected ${selectedPackage}")
-                showHome()
+    private fun showPackOptions() {
+        AlertDialog.Builder(this)
+            .setTitle("Resource packs")
+            .setItems(arrayOf("Choose a pack file", "Open Minecraft")) { _, which ->
+                if (which == 0) {
+                    packPicker.launch(
+                        arrayOf(
+                            "application/zip",
+                            "application/octet-stream",
+                            "*/*"
+                        )
+                    )
+                } else {
+                    launchMinecraft()
+                }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("CANCEL", null)
             .show()
     }
 
-    private fun packageNameOfLauncher(): String =
-        applicationContext.packageName
-
-    private fun launchMinecraft() {
-        val launchIntent =
-            packageManager.getLaunchIntentForPackage(selectedPackage)
-
-        if (launchIntent == null) {
-            toast(
-                "Minecraft was not found. Install it first or select " +
-                "the correct installed game package."
-            )
-            return
-        }
-
-        try {
-            startActivity(launchIntent)
-        } catch (e: Exception) {
-            toast("Could not launch Minecraft: ${e.message}")
-        }
-    }
-
-    private fun importPack(uri: Uri) {
-        val mimeTypes = arrayOf(
-            "application/octet-stream",
-            "application/zip",
-            "application/x-minecraft-pack"
-        )
-
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, contentResolver.getType(uri) ?: mimeTypes[0])
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        try {
-            startActivity(intent)
-        } catch (_: Exception) {
-            val fallback = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "*/*")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            try {
-                startActivity(fallback)
-            } catch (_: Exception) {
-                toast(
-                    "Could not open the pack. Open the .mcpack file " +
-                    "from your file manager and choose Minecraft."
-                )
-            }
-        }
-    }
-
-    private fun createScreen(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(24), dp(32), dp(24), dp(28))
-            setBackgroundColor(Color.rgb(14, 12, 27))
-        }
-    }
-
-    private fun makeScrollable(view: LinearLayout): ScrollView {
-        return ScrollView(this).apply {
-            setBackgroundColor(Color.rgb(14, 12, 27))
-            isFillViewport = true
-            addView(
-                view,
-                ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-            )
-        }
-    }
-
-    private fun addTitle(text: String) {
-        val title = TextView(this).apply {
-            this.text = text
-            textSize = 27f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(192, 139, 255))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(18), 0, dp(10))
-        }
-        content.addView(
-            title,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-    }
-
-    private fun addSubtitle(text: String) {
-        val subtitle = TextView(this).apply {
-            this.text = text
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setTextColor(Color.LTGRAY)
-            setPadding(0, 0, 0, dp(24))
-        }
-        content.addView(subtitle)
-    }
-
-    private fun addInfo(text: String) {
-        val info = TextView(this).apply {
-            this.text = text
-            textSize = 15f
-            setTextColor(Color.WHITE)
-            setPadding(dp(14), dp(16), dp(14), dp(16))
-            setBackgroundColor(Color.rgb(30, 26, 48))
-        }
-
-        val params = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        params.setMargins(0, dp(8), 0, dp(12))
-        content.addView(info, params)
-    }
-
-    private fun addButton(text: String, action: () -> Unit) {
-        val button = MaterialButton(this).apply {
-            this.text = text
-            textSize = 14f
-            isAllCaps = false
-            setTextColor(Color.WHITE)
-            backgroundTintList =
-                android.content.res.ColorStateList.valueOf(
-                    Color.rgb(103, 52, 181)
-                )
-            cornerRadius = dp(14)
-            setOnClickListener { action() }
-        }
-
-        val params = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(54)
-        )
-        params.setMargins(0, dp(6), 0, dp(6))
-        content.addView(button, params)
-    }
-
-    private fun addToggle(
+    private fun addSwitch(
         label: String,
         key: String,
         defaultValue: Boolean
     ) {
-        val checkBox = android.widget.CheckBox(this).apply {
-            text = label
-            textSize = 16f
-            setTextColor(Color.WHITE)
-            buttonTintList =
-                android.content.res.ColorStateList.valueOf(
-                    Color.rgb(192, 139, 255)
-                )
-            isChecked = prefs.getBoolean(key, defaultValue)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(8), dp(12), dp(8))
+            setBackgroundColor(panel)
+        }
 
+        val text = TextView(this).apply {
+            this.text = label
+            textSize = 15f
+            setTextColor(white)
+            layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val toggle = SwitchCompat(this).apply {
+            isChecked = prefs.getBoolean(key, defaultValue)
+            thumbTintList = android.content.res.ColorStateList.valueOf(purple)
             setOnCheckedChangeListener { _, checked ->
                 prefs.edit().putBoolean(key, checked).apply()
             }
         }
 
+        row.addView(text)
+        row.addView(toggle)
+
         content.addView(
-            checkBox,
+            row,
             LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(52)
-            )
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(8)
+            }
         )
     }
 
-    private fun addFooter(text: String) {
-        val footer = TextView(this).apply {
-            this.text = text
-            textSize = 12f
-            gravity = Gravity.CENTER
-            setTextColor(Color.GRAY)
-            setPadding(0, dp(24), 0, dp(10))
+    private fun addButton(label: String, action: () -> Unit) {
+        val button = MaterialButton(
+            this,
+            null,
+            com.google.android.material.R.attr.materialButtonOutlinedStyle
+        ).apply {
+            text = label
+            textSize = 14f
+            isAllCaps = false
+            setTextColor(white)
+            backgroundTintList =
+                android.content.res.ColorStateList.valueOf(panel)
+            strokeColor =
+                android.content.res.ColorStateList.valueOf(purple)
+            strokeWidth = dp(1)
+            cornerRadius = dp(14)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setOnClickListener { action() }
         }
-        content.addView(footer)
+
+        content.addView(
+            button,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(10)
+            }
+        )
+    }
+
+    private fun addPanelText(heading: String, body: String) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            setBackgroundColor(panel)
+        }
+
+        box.addView(TextView(this).apply {
+            text = heading
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(purple)
+        })
+
+        box.addView(TextView(this).apply {
+            text = body
+            textSize = 14f
+            setTextColor(white)
+            setLineSpacing(dp(3).toFloat(), 1f)
+            setPadding(0, dp(8), 0, 0)
+        })
+
+        content.addView(
+            box,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(16)
+            }
+        )
+    }
+
+    private fun addText(
+        value: String,
+        size: Float,
+        color: Int,
+        bold: Boolean = false,
+        top: Int = 0,
+        bottom: Int = 0
+    ) {
+        val text = TextView(this).apply {
+            this.text = value
+            textSize = size
+            setTextColor(color)
+            if (bold) typeface = Typeface.DEFAULT_BOLD
+            if (top > 0) setPadding(0, dp(top), 0, 0)
+        }
+
+        content.addView(
+            text,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dp(bottom)
+            }
+        )
+    }
+
+    private fun launchMinecraft() {
+        val knownPackages = listOf(
+            "com.mojang.minecraftpe"
+        )
+
+        for (packageName in knownPackages) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                try {
+                    startActivity(launchIntent)
+                    return
+                } catch (_: Exception) {
+                    // Try the next available option.
+                }
+            }
+        }
+
+        Toast.makeText(
+            this,
+            "Minecraft was not found as an installed app. Install or select your game first.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
-
-    private fun toast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
 }
