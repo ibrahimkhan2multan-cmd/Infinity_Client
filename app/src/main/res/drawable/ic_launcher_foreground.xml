@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Infinity symbol, kept inside the 66dp adaptive-icon safe zone (centre of 108dp). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L74,66 L34,66 Z" />
+        android:strokeColor="#66B04BFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,54 C61.8,41 82.6,38.4 82.6,54 C82.6,69.6 61.8,67 54,54 C46.2,41 25.4,38.4 25.4,54 C25.4,69.6 46.2,67 54,54 Z" />
+    <path
+        android:strokeColor="#F1E4FF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,54 C61.8,41 82.6,38.4 82.6,54 C82.6,69.6 61.8,67 54,54 C46.2,41 25.4,38.4 25.4,54 C25.4,69.6 46.2,67 54,54 Z" />
 </vector>

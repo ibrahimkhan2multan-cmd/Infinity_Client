@@ -408,7 +408,34 @@ class MainActivity : AppCompatActivity() {
         return file.name
     }
 
+    /**
+     * Tries to hand the pack straight to Minecraft first (no chooser), using the MIME types
+     * Android file managers commonly send for .mcpack files. Returns true if Minecraft accepted
+     * the intent. This only starts Minecraft's own import screen; it cannot confirm the import.
+     */
+    private fun openPackInMinecraftDirectly(uri: Uri): Boolean {
+        val mimeTypes = listOf<String?>(null, "application/octet-stream", "application/zip")
+        for (pkg in minecraftPackages) {
+            if (installedPackageVersion(pkg) == null) continue
+            for (mime in mimeTypes) {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    if (mime == null) setData(uri) else setDataAndType(uri, mime)
+                    setPackage(pkg)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                try {
+                    startActivity(intent)
+                    return true
+                } catch (_: Exception) {
+                    // This MIME type did not match Minecraft's filters; try the next one.
+                }
+            }
+        }
+        return false
+    }
+
     private fun openPackForMinecraft(uri: Uri) {
+        if (openPackInMinecraftDirectly(uri)) return
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/zip")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -532,14 +559,16 @@ class MainActivity : AppCompatActivity() {
 
     // ---- Minecraft / app info ---------------------------------------------------
 
+    private fun installedPackageVersion(pkg: String): String? =
+        try {
+            packageManager.getPackageInfo(pkg, 0).versionName ?: "unknown"
+        } catch (_: Exception) {
+            null // Not installed or not visible.
+        }
+
     private fun installedMinecraftVersion(): String? {
         for (pkg in minecraftPackages) {
-            try {
-                val info = packageManager.getPackageInfo(pkg, 0)
-                return info.versionName ?: "unknown"
-            } catch (_: Exception) {
-                // Not installed or not visible; try the next package name.
-            }
+            installedPackageVersion(pkg)?.let { return it }
         }
         return null
     }
