@@ -18,6 +18,24 @@ object PackConfig {
     const val DEFAULT_ACCENT = "d"
     const val DEFAULT_INTERVAL = 2
 
+    const val PREF_CLIENT_NAME = "client_name"
+    const val DEFAULT_CLIENT_NAME = "Infinity's Client"
+    const val MAX_NAME_LENGTH = 24
+
+    const val PREF_RES_FOG = "res_clear_fog"
+    const val PREF_RES_INVENTORY = "res_black_inventory"
+    const val PREF_RES_LOADING = "res_loading_text"
+
+    const val BEHAVIOR_SUFFIX = "Bedrock QoL"
+    const val RESOURCE_SUFFIX = "Visuals"
+
+    /** Which parts of the bundled resource pack to include when the launcher builds it. */
+    data class ResourceOptions(
+        val clearFog: Boolean = true,
+        val blackInventory: Boolean = true,
+        val loadingText: Boolean = true
+    )
+
     /** [sample] is what the HUD editor preview shows; "{A}" is replaced by the accent colour code. */
     data class Toggle(
         val jsKey: String,
@@ -29,7 +47,7 @@ object PackConfig {
 
     /** Order here is the order the HUD is drawn in (must match SEGMENTS order in main.js). */
     val TOGGLES: List<Toggle> = listOf(
-        Toggle("brand", "pack_brand", "Infinity's Client tag", true, "§{A}Infinity's Client"),
+        Toggle("brand", "pack_brand", "Client name tag", true, "§{A}{NAME}"),
         Toggle("coords", "pack_coordinates", "Coordinates", true, "§fXYZ 128 64 -310"),
         Toggle("facing", "pack_facing", "Facing direction", false, "§fW §790°"),
         Toggle("dimension", "pack_dimension", "Dimension", true, "§7Overworld"),
@@ -67,7 +85,8 @@ object PackConfig {
         values: Map<String, Boolean>,
         accent: String,
         multiline: Boolean,
-        interval: Int
+        interval: Int,
+        name: String = DEFAULT_CLIENT_NAME
     ): String {
         val flags = TOGGLES.joinToString(", ") { t ->
             "${t.jsKey}: ${values[t.jsKey] ?: t.default}"
@@ -75,7 +94,7 @@ object PackConfig {
         return "$CONFIG_BEGIN\n" +
             "const CONFIG = {\n" +
             "  $flags,\n" +
-            "  accent: \"${validAccent(accent)}\", multiline: $multiline, interval: ${validInterval(interval)}\n" +
+            "  accent: \"${validAccent(accent)}\", multiline: $multiline, interval: ${validInterval(interval)}, name: \"${jsonEscape(sanitizeName(name))}\"\n" +
             "};\n" +
             CONFIG_END
     }
@@ -89,12 +108,59 @@ object PackConfig {
         return regex.replaceFirst(js, Regex.escapeReplacement(block))
     }
 
+    /**
+     * Cleans a user-entered client name: no colour-code, format or escape characters, no control
+     * characters, single spaces, limited length. Falls back to the default when nothing is left.
+     */
+    fun sanitizeName(raw: String?): String {
+        val cleaned = (raw ?: "")
+            .replace(Regex("§."), "")              // colour/format codes
+            .replace(Regex("%[0-9A-Za-z]?"), "")   // lang format specifiers such as %s or %1
+            .filter { it != '§' && it != '%' && it != '\\' && !it.isISOControl() }
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(MAX_NAME_LENGTH)
+            .trim()
+        return cleaned.ifEmpty { DEFAULT_CLIENT_NAME }
+    }
+
+    /** Escapes a sanitized name for use inside a JSON or JavaScript double-quoted string. */
+    fun jsonEscape(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+    /** Replaces the pack header name, e.g. "Infinity's Client • Bedrock QoL". First "name" key only. */
+    fun renameManifest(manifestJson: String, suffix: String, name: String): String {
+        val match = Regex("(\"name\"\\s*:\\s*\")[^\"]*(\")").find(manifestJson)
+            ?: throw IllegalStateException("Manifest has no name field")
+        val full = jsonEscape("${sanitizeName(name)} • $suffix")
+        return manifestJson.replaceRange(
+            match.range, match.groupValues[1] + full + match.groupValues[2]
+        )
+    }
+
+    /** Fills the {NAME} placeholder in a language file template. */
+    fun fillLangTemplate(template: String, name: String): String =
+        template.replace("{NAME}", sanitizeName(name))
+
+    /** Decides whether a file in the bundled resource pack is included for the chosen options. */
+    fun includeResourceEntry(entryName: String, o: ResourceOptions): Boolean = when {
+        entryName.startsWith("fogs/") -> o.clearFog
+        entryName.startsWith("ui/") -> o.blackInventory
+        entryName.startsWith("texts/") -> o.loadingText
+        else -> true
+    }
+
     /** Text for the HUD editor preview, using Minecraft colour codes. */
-    fun sampleLine(values: Map<String, Boolean>, accent: String, multiline: Boolean): String {
+    fun sampleLine(
+        values: Map<String, Boolean>,
+        accent: String,
+        multiline: Boolean,
+        name: String = DEFAULT_CLIENT_NAME
+    ): String {
         val a = validAccent(accent)
+        val n = sanitizeName(name)
         val parts = TOGGLES
             .filter { values[it.jsKey] ?: it.default }
-            .map { it.sample.replace("{A}", a) }
+            .map { it.sample.replace("{A}", a).replace("{NAME}", n) }
         return parts.joinToString(if (multiline) "\n" else " §8| ")
     }
 }

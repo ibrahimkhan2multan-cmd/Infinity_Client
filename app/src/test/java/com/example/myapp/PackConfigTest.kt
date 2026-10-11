@@ -17,6 +17,14 @@ class PackConfigTest {
         }
     }
 
+    private fun resourceEntries(): Map<String, ByteArray> {
+        val out = linkedMapOf<String, ByteArray>()
+        ZipFile(File("src/main/assets/packs/Infinity_UI_Resources.mcpack")).use { zip ->
+            for (e in zip.entries()) out[e.name] = zip.getInputStream(e).readBytes()
+        }
+        return out
+    }
+
     private fun defaults(): Map<String, Boolean> = PackConfig.TOGGLES.associate { it.jsKey to it.default }
 
     @Test
@@ -86,5 +94,71 @@ class PackConfigTest {
         assertEquals("§fXYZ 128 64 -310 §8| §cCombo: 3 §7(best 5) §4✦ HIT -4.0", PackConfig.sampleLine(values, "d", false))
         assertTrue(PackConfig.sampleLine(values, "d", true).contains("\n"))
         assertEquals("§fXYZ 128 64 -310", PackConfig.sampleLine(values.toMutableMap().apply { put("combo", false) }, "d", false))
+    }
+
+    @Test
+    fun sanitizeNameStripsUnsafeCharactersAndLimitsLength() {
+        assertEquals("Infinity's Client", PackConfig.sanitizeName(null))
+        assertEquals("Infinity's Client", PackConfig.sanitizeName("   "))
+        assertEquals("Nova Client", PackConfig.sanitizeName("§cNova\n  Client%s"))
+        assertEquals("Ab\"c", PackConfig.sanitizeName("A\\b\"c"))
+        assertEquals(PackConfig.MAX_NAME_LENGTH, PackConfig.sanitizeName("x".repeat(100)).length)
+    }
+
+    @Test
+    fun customNameIsEscapedInConfigBlock() {
+        val block = PackConfig.buildConfigBlock(defaults(), "d", false, 2, "My \"Best\" Client")
+        assertTrue(block.contains("name: \"My \\\"Best\\\" Client\""))
+        val out = PackConfig.inject(shippedScript(), block)
+        assertTrue(out.contains("name: \"My \\\"Best\\\" Client\""))
+    }
+
+    @Test
+    fun renameManifestChangesOnlyHeaderName() {
+        val manifest = """{"header": {"name": "Old • Visuals", "uuid": "u"}, "modules": [{"type": "resources"}]}"""
+        val out = PackConfig.renameManifest(manifest, "Visuals", "Nova")
+        assertEquals("""{"header": {"name": "Nova • Visuals", "uuid": "u"}, "modules": [{"type": "resources"}]}""", out)
+    }
+
+    @Test
+    fun resourcePackOptionsSelectEntries() {
+        val all = PackConfig.ResourceOptions(true, true, true)
+        val none = PackConfig.ResourceOptions(false, false, false)
+        for (name in listOf("fogs/default_fog_setting.json", "ui/inventory_screen.json", "texts/en_US.lang")) {
+            assertTrue(PackConfig.includeResourceEntry(name, all))
+            assertFalse(PackConfig.includeResourceEntry(name, none))
+        }
+        assertTrue(PackConfig.includeResourceEntry("manifest.json", none))
+        assertTrue(PackConfig.includeResourceEntry("pack_icon.png", none))
+        assertFalse(PackConfig.includeResourceEntry("ui/inventory_screen.json", PackConfig.ResourceOptions(true, false, true)))
+    }
+
+    @Test
+    fun shippedResourcePackIsComplete() {
+        val entries = resourceEntries()
+        assertTrue(entries.containsKey("manifest.json"))
+        assertTrue(entries.containsKey("pack_icon.png"))
+        assertTrue(entries.containsKey("ui/inventory_screen.json"))
+        assertTrue(entries.containsKey("ui/inventory_screen_pocket.json"))
+        val fogs = entries.filterKeys { it.startsWith("fogs/") }
+        assertTrue(fogs.size >= 70)
+        for ((name, bytes) in fogs) {
+            val text = bytes.toString(Charsets.UTF_8)
+            for (key in listOf("\"water\"", "\"lava\"", "\"lava_resistance\"")) assertTrue("$name lacks $key", text.contains(key))
+            assertFalse("$name still has transition_fog", text.contains("transition_fog"))
+        }
+        val langs = entries.filterKeys { it.startsWith("texts/") && it.endsWith(".lang") }
+        assertTrue(langs.isNotEmpty())
+        for ((name, bytes) in langs) {
+            val filled = PackConfig.fillLangTemplate(bytes.toString(Charsets.UTF_8), "Nova")
+            assertFalse("$name has unfilled placeholder", filled.contains("{NAME}"))
+            assertTrue(filled.contains("Nova • "))
+        }
+    }
+
+    @Test
+    fun sampleLineUsesClientName() {
+        val values = PackConfig.TOGGLES.associate { it.jsKey to (it.jsKey == "brand") }
+        assertEquals("§dNova", PackConfig.sampleLine(values, "d", false, "Nova"))
     }
 }

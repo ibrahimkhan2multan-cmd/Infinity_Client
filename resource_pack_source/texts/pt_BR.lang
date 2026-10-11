@@ -1,0 +1,14 @@
+progressScreen.title.loading={NAME} • Loading%1
+progressScreen.title.downloading={NAME} • Downloading packs %1
+progressScreen.title.applyingPacks={NAME} • Loading resource packs
+progressScreen.title.connectingLocal={NAME} • Starting World
+progressScreen.title.connectingLAN={NAME} • Connecting to multiplayer game
+progressScreen.title.connectingExternal={NAME} • Connecting to external server
+progressScreen.title.connectingRealms={NAME} • Connecting to Realm
+progressScreen.generating={NAME} • Generating World
+progressScreen.saving={NAME} • Saving world
+progressScreen.loading={NAME} • Loading...
+menu.loadingLevel={NAME} • Loading world
+menu.generatingLevel={NAME} • Generating World
+menu.generatingTerrain={NAME} • Building terrain
+multiplayer.downloadingTerrain={NAME} • Downloading terrain

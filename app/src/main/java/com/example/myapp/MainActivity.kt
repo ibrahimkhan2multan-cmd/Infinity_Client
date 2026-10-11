@@ -11,10 +11,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.text.InputFilter
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.view.Gravity
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -97,6 +99,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun multiline(): Boolean = prefs.getBoolean(PackConfig.PREF_MULTILINE, false)
 
+    private fun clientName(): String =
+        PackConfig.sanitizeName(prefs.getString(PackConfig.PREF_CLIENT_NAME, PackConfig.DEFAULT_CLIENT_NAME))
+
+    private fun resourceOptions(): PackConfig.ResourceOptions = PackConfig.ResourceOptions(
+        clearFog = prefs.getBoolean(PackConfig.PREF_RES_FOG, true),
+        blackInventory = prefs.getBoolean(PackConfig.PREF_RES_INVENTORY, true),
+        loadingText = prefs.getBoolean(PackConfig.PREF_RES_LOADING, true)
+    )
+
     private fun refreshTicks(): Int =
         PackConfig.validInterval(prefs.getInt(PackConfig.PREF_INTERVAL, PackConfig.DEFAULT_INTERVAL))
 
@@ -117,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         addButton("▶   PLAY MINECRAFT") { launchMinecraft() }
         addButton("✦   CLIENT MENU") { showClientMenu() }
         addButton("▦   HUD EDITOR") { showHudEditor() }
+        addButton("🎨   VISUALS PACK") { showVisualsPack() }
         addButton("📦   BEDROCK PACK MANAGER") { showPackManager() }
         addButton("⚙   SETTINGS") { showSettings() }
         addPanelText(
@@ -159,6 +171,7 @@ class MainActivity : AppCompatActivity() {
             addSwitch(toggle.label, toggle.prefKey, toggle.default) { updatePreview() }
         }
         addSwitch("Multi-line layout (experimental)", PackConfig.PREF_MULTILINE, false) { updatePreview() }
+        addButton("CLIENT NAME:  ${clientName()}") { chooseClientName { showHudEditor() } }
         val accentName = PackConfig.ACCENTS.first { it.first == accentCode() }.second
         addButton("ACCENT COLOUR:  $accentName") { chooseAccent() }
         addButton("REFRESH RATE:  ${refreshLabel(refreshTicks())}") { chooseRefresh() }
@@ -174,6 +187,7 @@ class MainActivity : AppCompatActivity() {
                     editor.remove(PackConfig.PREF_ACCENT)
                     editor.remove(PackConfig.PREF_MULTILINE)
                     editor.remove(PackConfig.PREF_INTERVAL)
+                    editor.remove(PackConfig.PREF_CLIENT_NAME)
                     editor.apply()
                     showHudEditor()
                 }.show()
@@ -194,6 +208,7 @@ class MainActivity : AppCompatActivity() {
         )
         addButton("IMPORT BUILT-IN INFINITY QOL PACK") { importBuiltInPack() }
         addButton("SAVE PACK TO DOWNLOADS") { savePackToDownloads() }
+        addButton("OPEN VISUALS PACK (FOG / INVENTORY / LOADING)") { showVisualsPack() }
         addButton("SELECT CUSTOM .MCPACK FILE") {
             customPackPicker.launch(arrayOf("*/*", "application/zip", "application/octet-stream"))
         }
@@ -208,6 +223,7 @@ class MainActivity : AppCompatActivity() {
         createPage("SETTINGS", "Infinity's Client launcher.")
         addButton("←   BACK TO HOME") { showHome() }
         addPanelText("APP", "Version ${appVersion()}\nMinecraft target: Bedrock 1.26.33.1")
+        addButton("CLIENT NAME:  ${clientName()}") { chooseClientName { showSettings() } }
         addSwitch("Remember launcher preferences", "remember_options", true)
         addButton("CLEAR SAVED CLIENT OPTIONS") {
             AlertDialog.Builder(this)
@@ -223,6 +239,55 @@ class MainActivity : AppCompatActivity() {
             "Your worlds remain stored by Minecraft. This app does not need to uninstall Minecraft or clear its data.",
             12f, muted, top = 18
         )
+    }
+
+    private fun showVisualsPack() {
+        createPage("VISUALS PACK", "Resource pack: fog, inventory background and loading screens.")
+        addButton("←   BACK TO HOME") { showHome() }
+        addPanelText(
+            "WHAT IT CHANGES",
+            "• Clear water and lava fog in every biome.\n" +
+                "• Solid black background behind the inventory (instead of the see-through world).\n" +
+                "• Loading-screen titles carry your client name.\n" +
+                "• The pack shows your client name in Minecraft's resource pack list.\n\n" +
+                "Import it, then activate it under Settings → Global Resources (all worlds) or a world's Resource Packs. " +
+                "Servers that send their own resource pack may override it. The launcher cannot test these in-game effects."
+        )
+        addButton("CLIENT NAME:  ${clientName()}") { chooseClientName { showVisualsPack() } }
+        addSwitch("Clear water and lava fog", PackConfig.PREF_RES_FOG, true)
+        addSwitch("Solid black inventory background", PackConfig.PREF_RES_INVENTORY, true)
+        addSwitch("Client name on loading screens", PackConfig.PREF_RES_LOADING, true)
+        addButton("IMPORT / UPDATE VISUALS PACK") { importVisualsPack() }
+        addButton("SAVE VISUALS PACK TO DOWNLOADS") { saveVisualsPackToDownloads() }
+        addText(
+            "Tap IMPORT again after changing options or the client name. If Minecraft says the pack already exists, replace it or remove the old copy in Minecraft's storage settings.",
+            12f, muted, top = 8
+        )
+    }
+
+    private fun chooseClientName(onSaved: () -> Unit) {
+        val input = EditText(this).apply {
+            setText(clientName())
+            setSelection(text.length)
+            filters = arrayOf(InputFilter.LengthFilter(PackConfig.MAX_NAME_LENGTH))
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Client name")
+            .setMessage("Shown in the HUD tag, pack names and loading screens. Import the packs again after changing it.")
+            .setView(input)
+            .setNegativeButton("CANCEL", null)
+            .setNeutralButton("DEFAULT") { _, _ ->
+                prefs.edit().remove(PackConfig.PREF_CLIENT_NAME).apply()
+                onSaved()
+            }
+            .setPositiveButton("SAVE") { _, _ ->
+                prefs.edit().putString(
+                    PackConfig.PREF_CLIENT_NAME, PackConfig.sanitizeName(input.text.toString())
+                ).apply()
+                onSaved()
+            }
+            .show()
     }
 
     // ---- HUD editor helpers -----------------------------------------------------
@@ -254,7 +319,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePreview() {
-        val line = PackConfig.sampleLine(hudValues(), accentCode(), multiline())
+        val line = PackConfig.sampleLine(hudValues(), accentCode(), multiline(), clientName())
         previewView?.text = if (line.isEmpty()) "(nothing selected)" else renderMinecraftText(line)
     }
 
@@ -324,25 +389,23 @@ class MainActivity : AppCompatActivity() {
 
     // ---- Pack building / import -------------------------------------------------
 
-    /** Copies the bundled pack into the cache with the user's HUD options written into main.js. */
-    private fun buildConfiguredPack(): File {
-        val assetName = "Infinity_QoL_Behavior.mcpack"
+    /**
+     * Copies a bundled .mcpack into the cache, letting [transform] rewrite or drop each file.
+     * Returning null from [transform] leaves the file out of the generated pack.
+     */
+    private fun buildPack(assetName: String, transform: (String, ByteArray) -> ByteArray?): File {
         val outFile = File(cacheDir, assetName)
-        val block = PackConfig.buildConfigBlock(hudValues(), accentCode(), multiline(), refreshTicks())
         ZipInputStream(assets.open("packs/$assetName")).use { input ->
             ZipOutputStream(FileOutputStream(outFile)).use { output ->
                 var entry = input.nextEntry
                 while (entry != null) {
                     val bytes = input.readBytes()
-                    output.putNextEntry(ZipEntry(entry.name))
-                    val contentBytes = if (entry.name == "scripts/main.js") {
-                        PackConfig.inject(bytes.toString(Charsets.UTF_8), block)
-                            .toByteArray(Charsets.UTF_8)
-                    } else {
-                        bytes
+                    val result = transform(entry.name, bytes)
+                    if (result != null) {
+                        output.putNextEntry(ZipEntry(entry.name))
+                        output.write(result)
+                        output.closeEntry()
                     }
-                    output.write(contentBytes)
-                    output.closeEntry()
                     input.closeEntry()
                     entry = input.nextEntry
                 }
@@ -351,9 +414,50 @@ class MainActivity : AppCompatActivity() {
         return outFile
     }
 
-    private fun importBuiltInPack() {
+    /** The HUD behavior pack with the user's HUD options and client name written in. */
+    private fun buildConfiguredPack(): File {
+        val name = clientName()
+        val block = PackConfig.buildConfigBlock(hudValues(), accentCode(), multiline(), refreshTicks(), name)
+        return buildPack("Infinity_QoL_Behavior.mcpack") { entry, bytes ->
+            when (entry) {
+                "scripts/main.js" ->
+                    PackConfig.inject(bytes.toString(Charsets.UTF_8), block).toByteArray(Charsets.UTF_8)
+                "manifest.json" ->
+                    PackConfig.renameManifest(bytes.toString(Charsets.UTF_8), PackConfig.BEHAVIOR_SUFFIX, name)
+                        .toByteArray(Charsets.UTF_8)
+                else -> bytes
+            }
+        }
+    }
+
+    /** The visuals resource pack with only the chosen parts included. */
+    private fun buildVisualsPack(): File {
+        val options = resourceOptions()
+        require(options.clearFog || options.blackInventory || options.loadingText) {
+            "Turn on at least one visuals option first"
+        }
+        val name = clientName()
+        return buildPack("Infinity_UI_Resources.mcpack") { entry, bytes ->
+            when {
+                !PackConfig.includeResourceEntry(entry, options) -> null
+                entry == "manifest.json" ->
+                    PackConfig.renameManifest(bytes.toString(Charsets.UTF_8), PackConfig.RESOURCE_SUFFIX, name)
+                        .toByteArray(Charsets.UTF_8)
+                entry.startsWith("texts/") && entry.endsWith(".lang") ->
+                    PackConfig.fillLangTemplate(bytes.toString(Charsets.UTF_8), name)
+                        .toByteArray(Charsets.UTF_8)
+                else -> bytes
+            }
+        }
+    }
+
+    private fun importBuiltInPack() = importPack("the built-in pack") { buildConfiguredPack() }
+
+    private fun importVisualsPack() = importPack("the visuals pack") { buildVisualsPack() }
+
+    private fun importPack(label: String, builder: () -> File) {
         try {
-            val outFile = buildConfiguredPack()
+            val outFile = builder()
             val uri = FileProvider.getUriForFile(
                 this, "$packageName.fileprovider", outFile
             )
@@ -361,23 +465,27 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(
                 this,
-                "Could not prepare the built-in pack: ${e.message ?: "unknown error"}",
+                "Could not prepare $label: ${e.message ?: "unknown error"}",
                 Toast.LENGTH_LONG
             ).show()
         }
     }
 
-    private fun savePackToDownloads() {
+    private fun savePackToDownloads() = savePack { buildConfiguredPack() }
+
+    private fun saveVisualsPackToDownloads() = savePack { buildVisualsPack() }
+
+    private fun savePack(builder: () -> File) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             Toast.makeText(
                 this,
-                "Saving to Downloads needs Android 10 or newer. Use IMPORT BUILT-IN INFINITY QOL PACK instead.",
+                "Saving to Downloads needs Android 10 or newer. Use the IMPORT button instead.",
                 Toast.LENGTH_LONG
             ).show()
             return
         }
         try {
-            val file = buildConfiguredPack()
+            val file = builder()
             val name = saveToDownloads(file)
             Toast.makeText(
                 this,
@@ -408,7 +516,34 @@ class MainActivity : AppCompatActivity() {
         return file.name
     }
 
+    /**
+     * Tries to hand the pack straight to Minecraft first (no chooser), using the MIME types
+     * Android file managers commonly send for .mcpack files. Returns true if Minecraft accepted
+     * the intent. This only starts Minecraft's own import screen; it cannot confirm the import.
+     */
+    private fun openPackInMinecraftDirectly(uri: Uri): Boolean {
+        val mimeTypes = listOf<String?>(null, "application/octet-stream", "application/zip")
+        for (pkg in minecraftPackages) {
+            if (installedPackageVersion(pkg) == null) continue
+            for (mime in mimeTypes) {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    if (mime == null) setData(uri) else setDataAndType(uri, mime)
+                    setPackage(pkg)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                try {
+                    startActivity(intent)
+                    return true
+                } catch (_: Exception) {
+                    // This MIME type did not match Minecraft's filters; try the next one.
+                }
+            }
+        }
+        return false
+    }
+
     private fun openPackForMinecraft(uri: Uri) {
+        if (openPackInMinecraftDirectly(uri)) return
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/zip")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -532,14 +667,16 @@ class MainActivity : AppCompatActivity() {
 
     // ---- Minecraft / app info ---------------------------------------------------
 
+    private fun installedPackageVersion(pkg: String): String? =
+        try {
+            packageManager.getPackageInfo(pkg, 0).versionName ?: "unknown"
+        } catch (_: Exception) {
+            null // Not installed or not visible.
+        }
+
     private fun installedMinecraftVersion(): String? {
         for (pkg in minecraftPackages) {
-            try {
-                val info = packageManager.getPackageInfo(pkg, 0)
-                return info.versionName ?: "unknown"
-            } catch (_: Exception) {
-                // Not installed or not visible; try the next package name.
-            }
+            installedPackageVersion(pkg)?.let { return it }
         }
         return null
     }

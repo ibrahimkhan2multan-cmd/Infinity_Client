@@ -10,7 +10,7 @@ const CONFIG = {
   brand: true, coords: true, facing: false, dimension: true, nether: false,
   target: true, reach: true, entity: true, health: false, held: false,
   armor: false, speed: false, time: false, combo: true,
-  accent: "d", multiline: false, interval: 2
+  accent: "d", multiline: false, interval: 2, name: "Infinity's Client"
 };
 // INFINITY_CONFIG_END
 
@@ -25,6 +25,7 @@ const VIEW_DISTANCE = 8;
 
 // Runtime copy so /scriptevent toggles do not touch the packaged defaults.
 const runtime = { ...CONFIG, enabled: true };
+runtime.name = String(CONFIG.name ?? "Infinity's Client");
 const state = new Map();
 
 function getState(id) {
@@ -113,7 +114,7 @@ function firstEntityInView(player) {
 }
 
 const SEGMENTS = [
-  ["brand", () => `${accent()}Infinity's Client`],
+  ["brand", () => `${accent()}${runtime.name}`],
 
   ["coords", (p) => {
     const l = p.location;
@@ -270,16 +271,16 @@ try {
     if (event.id === "infinity:hud") {
       if (arg === "on" || arg === "off") {
         runtime.enabled = arg === "on";
-        reply(`§dInfinity's Client §fHUD ${arg}`);
+        reply(`${accent()}${runtime.name} §fHUD ${arg}`);
       } else {
-        reply("§dInfinity's Client §fUse: /scriptevent infinity:hud on|off");
+        reply(`${accent()}${runtime.name} §fUse: /scriptevent infinity:hud on|off`);
       }
     } else if (event.id === "infinity:toggle") {
       if (TOGGLE_KEYS.includes(arg)) {
         runtime[arg] = !runtime[arg];
-        reply(`§dInfinity's Client §f${arg}: ${runtime[arg] ? "on" : "off"}`);
+        reply(`${accent()}${runtime.name} §f${arg}: ${runtime[arg] ? "on" : "off"}`);
       } else {
-        reply(`§dInfinity's Client §fUse: /scriptevent infinity:toggle <${TOGGLE_KEYS.join("|")}>`);
+        reply(`${accent()}${runtime.name} §fUse: /scriptevent infinity:toggle <${TOGGLE_KEYS.join("|")}>`);
       }
     }
   });
