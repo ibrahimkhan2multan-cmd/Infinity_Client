@@ -1,3 +1,4 @@
+
 package com.infinity.launcher
 
 import android.content.Intent
@@ -26,7 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var content: LinearLayout
 
     private val purple = Color.rgb(176, 75, 255)
-    private val background = Color.rgb(13, 10, 24)
+    private val pageBackgroundColor = Color.rgb(13, 10, 24)
     private val panel = Color.rgb(30, 22, 47)
     private val white = Color.rgb(246, 241, 255)
     private val muted = Color.rgb(174, 160, 194)
@@ -58,16 +59,19 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = background
-        window.navigationBarColor = background
+        window.statusBarColor = pageBackgroundColor
+        window.navigationBarColor = pageBackgroundColor
         window.decorView.systemUiVisibility = 0
 
         showHome()
     }
 
-    private fun createPage(title: String, subtitle: String): LinearLayout {
+    private fun createPage(
+        title: String,
+        subtitle: String
+    ): LinearLayout {
         val scroll = ScrollView(this).apply {
-            setBackgroundColor(background)
+            setBackgroundColor(pageBackgroundColor)
             isFillViewport = true
         }
 
@@ -130,7 +134,9 @@ class MainActivity : AppCompatActivity() {
             "Configure your preferred client options."
         )
 
-        addButton("←   BACK TO HOME") { showHome() }
+        addButton("←   BACK TO HOME") {
+            showHome()
+        }
 
         addPanelText(
             "FEATURE SETTINGS",
@@ -164,7 +170,9 @@ class MainActivity : AppCompatActivity() {
             "Choose which HUD preferences you want enabled."
         )
 
-        addButton("←   BACK TO HOME") { showHome() }
+        addButton("←   BACK TO HOME") {
+            showHome()
+        }
 
         addPanelText(
             "HUD OPTIONS",
@@ -212,7 +220,9 @@ class MainActivity : AppCompatActivity() {
             "Infinity's Client launcher preferences."
         )
 
-        addButton("←   BACK TO HOME") { showHome() }
+        addButton("←   BACK TO HOME") {
+            showHome()
+        }
 
         addPanelText(
             "LAUNCHER",
@@ -289,6 +299,7 @@ class MainActivity : AppCompatActivity() {
         val toggle = SwitchCompat(this).apply {
             isChecked = prefs.getBoolean(key, defaultValue)
             thumbTintList = ColorStateList.valueOf(purple)
+
             setOnCheckedChangeListener { _, checked ->
                 prefs.edit().putBoolean(key, checked).apply()
             }
@@ -308,7 +319,10 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun addButton(label: String, action: () -> Unit) {
+    private fun addButton(
+        label: String,
+        action: () -> Unit
+    ) {
         val button = MaterialButton(
             this,
             null,
@@ -325,7 +339,9 @@ class MainActivity : AppCompatActivity() {
             cornerRadius = dp(14)
 
             setPadding(dp(12), dp(10), dp(12), dp(10))
-            setOnClickListener { action() }
+            setOnClickListener {
+                action()
+            }
         }
 
         content.addView(
@@ -339,7 +355,10 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun addPanelText(heading: String, body: String) {
+    private fun addPanelText(
+        heading: String,
+        body: String
+    ) {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
