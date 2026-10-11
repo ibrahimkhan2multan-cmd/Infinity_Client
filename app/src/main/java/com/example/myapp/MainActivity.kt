@@ -1,13 +1,12 @@
-
 package com.infinity.launcher
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -41,12 +40,16 @@ class MainActivity : AppCompatActivity() {
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
                 } catch (_: Exception) {
-                    // Some document providers do not support persistent permissions.
+                    // The selected document may not support persistent access.
                 }
-                prefs.edit().putString("last_imported_pack_uri", uri.toString()).apply()
+
+                prefs.edit()
+                    .putString("last_imported_pack_uri", uri.toString())
+                    .apply()
+
                 Toast.makeText(
                     this,
-                    "Pack selected. Import it through Minecraft if Android offers that option.",
+                    "Pack selected. Open Minecraft to import it if supported.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -54,9 +57,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         window.statusBarColor = background
         window.navigationBarColor = background
         window.decorView.systemUiVisibility = 0
+
         showHome()
     }
 
@@ -74,13 +79,7 @@ class MainActivity : AppCompatActivity() {
         scroll.addView(content)
         setContentView(scroll)
 
-        addText(
-            title,
-            28f,
-            white,
-            bold = true,
-            bottom = 6
-        )
+        addText(title, 28f, white, bold = true, bottom = 6)
         addText(subtitle, 14f, muted, bottom = 20)
 
         return content
@@ -94,7 +93,7 @@ class MainActivity : AppCompatActivity() {
 
         addPanelText(
             "WELCOME BACK",
-            "Your launcher settings are saved on this device. Choose a section below."
+            "Your launcher preferences are saved on this device. Choose a section below."
         )
 
         addButton("▶   PLAY MINECRAFT") {
@@ -118,7 +117,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         addText(
-            "Launcher-side settings do not automatically modify Minecraft gameplay.",
+            "Client settings are saved by the launcher. In-game effects require a supported integration.",
             12f,
             muted,
             top = 18
@@ -128,14 +127,14 @@ class MainActivity : AppCompatActivity() {
     private fun showClientMenu() {
         createPage(
             "CLIENT MENU",
-            "Toggle and save your preferred client options."
+            "Configure your preferred client options."
         )
 
         addButton("←   BACK TO HOME") { showHome() }
 
         addPanelText(
             "FEATURE SETTINGS",
-            "These switches save your preferences inside Infinity's Client. In-game effects require a separate supported integration."
+            "These switches save your preferences inside Infinity's Client. They do not independently activate in-game features."
         )
 
         addSwitch("FPS Counter", "fps", true)
@@ -151,21 +150,25 @@ class MainActivity : AppCompatActivity() {
         addSwitch("Custom Crosshair", "custom_crosshair", false)
 
         addButton("SAVE SETTINGS") {
-            Toast.makeText(this, "Settings are saved automatically.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Your settings are saved automatically.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun showHudEditor() {
         createPage(
             "HUD EDITOR",
-            "Choose which HUD elements you want enabled."
+            "Choose which HUD preferences you want enabled."
         )
 
         addButton("←   BACK TO HOME") { showHome() }
 
         addPanelText(
             "HUD OPTIONS",
-            "This screen stores your layout preferences in the launcher. It does not draw overlays over Minecraft yet."
+            "These options are stored in the launcher. Drawing overlays inside Minecraft requires a separate supported integration."
         )
 
         addSwitch("Coordinates HUD", "hud_coordinates", true)
@@ -183,14 +186,20 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton("CANCEL", null)
                 .setPositiveButton("RESET") { _, _ ->
                     val keys = listOf(
-                        "hud_coordinates", "hud_fps", "hud_cps",
-                        "hud_ping", "hud_keystrokes", "hud_armor",
+                        "hud_coordinates",
+                        "hud_fps",
+                        "hud_cps",
+                        "hud_ping",
+                        "hud_keystrokes",
+                        "hud_armor",
                         "hud_inventory"
                     )
+
                     prefs.edit().apply {
                         keys.forEach { remove(it) }
                         apply()
                     }
+
                     showHudEditor()
                 }
                 .show()
@@ -225,7 +234,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         addText(
-            "Do not uninstall Minecraft to use this launcher. Your worlds belong to Minecraft, not this app.",
+            "Your worlds are stored by Minecraft. This launcher does not need to uninstall or clear Minecraft data.",
             12f,
             muted,
             top = 18
@@ -235,7 +244,12 @@ class MainActivity : AppCompatActivity() {
     private fun showPackOptions() {
         AlertDialog.Builder(this)
             .setTitle("Resource packs")
-            .setItems(arrayOf("Choose a pack file", "Open Minecraft")) { _, which ->
+            .setItems(
+                arrayOf(
+                    "Choose a pack file",
+                    "Open Minecraft"
+                )
+            ) { _, which ->
                 if (which == 0) {
                     packPicker.launch(
                         arrayOf(
@@ -274,7 +288,7 @@ class MainActivity : AppCompatActivity() {
 
         val toggle = SwitchCompat(this).apply {
             isChecked = prefs.getBoolean(key, defaultValue)
-            thumbTintList = android.content.res.ColorStateList.valueOf(purple)
+            thumbTintList = ColorStateList.valueOf(purple)
             setOnCheckedChangeListener { _, checked ->
                 prefs.edit().putBoolean(key, checked).apply()
             }
@@ -304,12 +318,12 @@ class MainActivity : AppCompatActivity() {
             textSize = 14f
             isAllCaps = false
             setTextColor(white)
-            backgroundTintList =
-                android.content.res.ColorStateList.valueOf(panel)
-            strokeColor =
-                android.content.res.ColorStateList.valueOf(purple)
+
+            backgroundTintList = ColorStateList.valueOf(panel)
+            strokeColor = ColorStateList.valueOf(purple)
             strokeWidth = dp(1)
             cornerRadius = dp(14)
+
             setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener { action() }
         }
@@ -332,20 +346,24 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(panel)
         }
 
-        box.addView(TextView(this).apply {
-            text = heading
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(purple)
-        })
+        box.addView(
+            TextView(this).apply {
+                text = heading
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(purple)
+            }
+        )
 
-        box.addView(TextView(this).apply {
-            text = body
-            textSize = 14f
-            setTextColor(white)
-            setLineSpacing(dp(3).toFloat(), 1f)
-            setPadding(0, dp(8), 0, 0)
-        })
+        box.addView(
+            TextView(this).apply {
+                text = body
+                textSize = 14f
+                setTextColor(white)
+                setLineSpacing(dp(3).toFloat(), 1f)
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
 
         content.addView(
             box,
@@ -370,8 +388,14 @@ class MainActivity : AppCompatActivity() {
             this.text = value
             textSize = size
             setTextColor(color)
-            if (bold) typeface = Typeface.DEFAULT_BOLD
-            if (top > 0) setPadding(0, dp(top), 0, 0)
+
+            if (bold) {
+                typeface = Typeface.DEFAULT_BOLD
+            }
+
+            if (top > 0) {
+                setPadding(0, dp(top), 0, 0)
+            }
         }
 
         content.addView(
@@ -386,25 +410,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchMinecraft() {
-        val knownPackages = listOf(
-            "com.mojang.minecraftpe"
-        )
+        val launchIntent =
+            packageManager.getLaunchIntentForPackage("com.mojang.minecraftpe")
 
-        for (packageName in knownPackages) {
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                try {
-                    startActivity(launchIntent)
-                    return
-                } catch (_: Exception) {
-                    // Try the next available option.
-                }
+        if (launchIntent != null) {
+            try {
+                startActivity(launchIntent)
+                return
+            } catch (_: Exception) {
+                // Show the message below if Android cannot launch the game.
             }
         }
 
         Toast.makeText(
             this,
-            "Minecraft was not found as an installed app. Install or select your game first.",
+            "Minecraft was not found as an installed app. Check that your game is installed and launchable.",
             Toast.LENGTH_LONG
         ).show()
     }
