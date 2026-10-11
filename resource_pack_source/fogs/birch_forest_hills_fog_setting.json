@@ -1,0 +1,28 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:fog_settings": {
+    "description": {
+      "identifier": "minecraft:fog_birch_forest_hills"
+    },
+    "distance": {
+      "water": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#0a74c4"
+      },
+      "lava": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      },
+      "lava_resistance": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      }
+    }
+  }
+}

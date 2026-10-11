@@ -1,0 +1,40 @@
+{
+  "format_version": "1.16.100",
+  "minecraft:fog_settings": {
+    "description": {
+      "identifier": "minecraft:fog_crimson_forest"
+    },
+    "distance": {
+      "air": {
+        "fog_start": 10.0,
+        "fog_end": 96.0,
+        "fog_color": "#330303",
+        "render_distance_type": "fixed"
+      },
+      "water": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#905957"
+      },
+      "weather": {
+        "fog_start": 10.0,
+        "fog_end": 96.0,
+        "fog_color": "#330303",
+        "render_distance_type": "fixed"
+      },
+      "lava": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      },
+      "lava_resistance": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      }
+    }
+  }
+}
