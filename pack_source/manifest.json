@@ -1,0 +1,46 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Infinity's Client • Bedrock QoL",
+    "description": "Coordinates, facing, looked-at block, target entity, hit/combo and more as an action-bar HUD.",
+    "uuid": "99588a13-4356-42f4-a0d8-cac122d7d2bc",
+    "version": [
+      1,
+      1,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      80
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "7ccd2991-ca5f-4d17-b7ff-8b308257b6e5",
+      "version": [
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "8d057075-b135-4dd1-ac55-745ded1b3263",
+      "version": [
+        1,
+        1,
+        0
+      ],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.0.0"
+    }
+  ]
+}
