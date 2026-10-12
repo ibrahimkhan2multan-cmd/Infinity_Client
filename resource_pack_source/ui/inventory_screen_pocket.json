@@ -1,0 +1,9 @@
+{
+  "namespace": "crafting_pocket",
+  "crafting_screen_pocket": {
+    "$screen_background_alpha": 1.0
+  },
+  "inventory_screen_pocket": {
+    "$screen_background_alpha": 1.0
+  }
+}

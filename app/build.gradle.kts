@@ -11,8 +11,8 @@ android {
         applicationId = "com.infinity.launcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 8
+        versionName = "1.6"
 
         testInstrumentationRunner =
             "androidx.test.runner.AndroidJUnitRunner"

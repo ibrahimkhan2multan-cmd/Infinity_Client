@@ -17,6 +17,14 @@ class PackConfigTest {
         }
     }
 
+    private fun resourceEntries(): Map<String, ByteArray> {
+        val out = linkedMapOf<String, ByteArray>()
+        ZipFile(File("src/main/assets/packs/Infinity_UI_Resources.mcpack")).use { zip ->
+            for (e in zip.entries()) out[e.name] = zip.getInputStream(e).readBytes()
+        }
+        return out
+    }
+
     private fun defaults(): Map<String, Boolean> = PackConfig.TOGGLES.associate { it.jsKey to it.default }
 
     @Test
@@ -56,7 +64,7 @@ class PackConfigTest {
     fun segmentOrderMatchesPreviewOrder() {
         val js = shippedScript()
         val segmentKeys = Regex("^  \\[\"(\\w+)\", ", RegexOption.MULTILINE).findAll(js).map { it.groupValues[1] }.toList()
-        assertEquals(PackConfig.TOGGLES.map { it.jsKey }, segmentKeys)
+        assertEquals(PackConfig.TOGGLES.filter { it.inHud }.map { it.jsKey }, segmentKeys)
     }
 
     @Test
@@ -86,5 +94,96 @@ class PackConfigTest {
         assertEquals("§fXYZ 128 64 -310 §8| §cCombo: 3 §7(best 5) §4✦ HIT -4.0", PackConfig.sampleLine(values, "d", false))
         assertTrue(PackConfig.sampleLine(values, "d", true).contains("\n"))
         assertEquals("§fXYZ 128 64 -310", PackConfig.sampleLine(values.toMutableMap().apply { put("combo", false) }, "d", false))
+    }
+
+    @Test
+    fun sanitizeNameStripsUnsafeCharactersAndLimitsLength() {
+        assertEquals("Infinity's Client", PackConfig.sanitizeName(null))
+        assertEquals("Infinity's Client", PackConfig.sanitizeName("   "))
+        assertEquals("Nova Client", PackConfig.sanitizeName("§cNova\n  Client%s"))
+        assertEquals("Ab\"c", PackConfig.sanitizeName("A\\b\"c"))
+        assertEquals(PackConfig.MAX_NAME_LENGTH, PackConfig.sanitizeName("x".repeat(100)).length)
+    }
+
+    @Test
+    fun customNameIsEscapedInConfigBlock() {
+        val block = PackConfig.buildConfigBlock(defaults(), "d", false, 2, "My \"Best\" Client")
+        assertTrue(block.contains("name: \"My \\\"Best\\\" Client\""))
+        val out = PackConfig.inject(shippedScript(), block)
+        assertTrue(out.contains("name: \"My \\\"Best\\\" Client\""))
+    }
+
+    @Test
+    fun renameManifestChangesOnlyHeaderName() {
+        val manifest = """{"header": {"name": "Old • Visuals", "uuid": "u"}, "modules": [{"type": "resources"}]}"""
+        val out = PackConfig.renameManifest(manifest, "Visuals", "Nova")
+        assertEquals("""{"header": {"name": "Nova • Visuals", "uuid": "u"}, "modules": [{"type": "resources"}]}""", out)
+    }
+
+    @Test
+    fun resourcePackOptionsSelectEntries() {
+        val all = PackConfig.ResourceOptions(true, true, true, true)
+        val none = PackConfig.ResourceOptions(false, false, false, false)
+        for (name in listOf("fogs/default_fog_setting.json", "ui/inventory_screen.json", "texts/en_US.lang", "textures/ui/title.png")) {
+            assertTrue(PackConfig.includeResourceEntry(name, all))
+            assertFalse(PackConfig.includeResourceEntry(name, none))
+        }
+        assertTrue(PackConfig.includeResourceEntry("manifest.json", none))
+        assertTrue(PackConfig.includeResourceEntry("pack_icon.png", none))
+        assertFalse(PackConfig.includeResourceEntry("ui/inventory_screen.json", PackConfig.ResourceOptions(true, false, true, true)))
+    }
+
+    @Test
+    fun shippedResourcePackIsComplete() {
+        val entries = resourceEntries()
+        assertTrue(entries.containsKey("manifest.json"))
+        assertTrue(entries.containsKey("pack_icon.png"))
+        assertTrue(entries.containsKey("ui/inventory_screen.json"))
+        assertTrue(entries.containsKey("ui/inventory_screen_pocket.json"))
+        val logo = entries["textures/ui/title.png"]!!
+        assertEquals(listOf(0x89, 0x50, 0x4E, 0x47), logo.take(4).map { it.toInt() and 0xFF })
+        fun int(o: Int) = ((logo[o].toInt() and 0xFF) shl 24) or ((logo[o + 1].toInt() and 0xFF) shl 16) or
+            ((logo[o + 2].toInt() and 0xFF) shl 8) or (logo[o + 3].toInt() and 0xFF)
+        assertEquals(1768, int(16)); assertEquals(333, int(20))
+        val fogs = entries.filterKeys { it.startsWith("fogs/") }
+        assertTrue(fogs.size >= 70)
+        for ((name, bytes) in fogs) {
+            val text = bytes.toString(Charsets.UTF_8)
+            for (key in listOf("\"water\"", "\"lava\"", "\"lava_resistance\"")) assertTrue("$name lacks $key", text.contains(key))
+            assertFalse("$name still has transition_fog", text.contains("transition_fog"))
+        }
+        val langs = entries.filterKeys { it.startsWith("texts/") && it.endsWith(".lang") }
+        assertTrue(langs.isNotEmpty())
+        for ((name, bytes) in langs) {
+            val filled = PackConfig.fillLangTemplate(bytes.toString(Charsets.UTF_8), "Nova")
+            assertFalse("$name has unfilled placeholder", filled.contains("{NAME}"))
+            assertTrue(filled.contains("Nova • "))
+        }
+    }
+
+    @Test
+    fun sampleLineUsesClientName() {
+        val values = PackConfig.TOGGLES.associate { it.jsKey to (it.jsKey == "brand") }
+        assertEquals("§dNova", PackConfig.sampleLine(values, "d", false, "Nova"))
+    }
+
+    @Test
+    fun versionComparison() {
+        assertEquals(PackConfig.Compat.MATCH, PackConfig.compareVersion("1.26.33.1"))
+        assertEquals(PackConfig.Compat.MATCH, PackConfig.compareVersion("1.26.33.1-beta"))
+        assertEquals(PackConfig.Compat.SAME_SERIES, PackConfig.compareVersion("1.26.33"))
+        assertEquals(PackConfig.Compat.SAME_SERIES, PackConfig.compareVersion("1.26.60.2"))
+        assertEquals(PackConfig.Compat.DIFFERENT, PackConfig.compareVersion("1.21.80.3"))
+        assertEquals(PackConfig.Compat.UNKNOWN, PackConfig.compareVersion(null))
+        assertEquals(PackConfig.Compat.UNKNOWN, PackConfig.compareVersion("unknown"))
+    }
+
+    @Test
+    fun featureListIsHonest() {
+        assertTrue(PackConfig.FEATURES.any { it.support == PackConfig.Support.IMPLEMENTED })
+        for (f in PackConfig.FEATURES.filter { it.support == PackConfig.Support.NOT_POSSIBLE }) {
+            assertTrue("${f.name} needs a reason", f.how.length > 10)
+        }
+        assertTrue(PackConfig.TOGGLES.any { it.jsKey == "fullbright" && !it.inHud })
     }
 }

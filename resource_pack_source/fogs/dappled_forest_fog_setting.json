@@ -1,0 +1,28 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:fog_settings": {
+    "description": {
+      "identifier": "minecraft:fog_dappled_forest"
+    },
+    "distance": {
+      "water": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#1E97F2"
+      },
+      "lava": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      },
+      "lava_resistance": {
+        "fog_start": 0.92,
+        "fog_end": 1.0,
+        "render_distance_type": "render",
+        "fog_color": "#991A00"
+      }
+    }
+  }
+}
