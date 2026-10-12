@@ -25,6 +25,10 @@ object PackConfig {
     const val PREF_RES_FOG = "res_clear_fog"
     const val PREF_RES_INVENTORY = "res_black_inventory"
     const val PREF_RES_LOADING = "res_loading_text"
+    const val PREF_RES_LOGO = "res_logo"
+
+    /** Minecraft Bedrock version this client is built and checked against. */
+    const val TARGET_MINECRAFT = "1.26.33.1"
 
     const val BEHAVIOR_SUFFIX = "Bedrock QoL"
     const val RESOURCE_SUFFIX = "Visuals"
@@ -33,7 +37,8 @@ object PackConfig {
     data class ResourceOptions(
         val clearFog: Boolean = true,
         val blackInventory: Boolean = true,
-        val loadingText: Boolean = true
+        val loadingText: Boolean = true,
+        val logo: Boolean = true
     )
 
     /** [sample] is what the HUD editor preview shows; "{A}" is replaced by the accent colour code. */
@@ -42,7 +47,9 @@ object PackConfig {
         val prefKey: String,
         val label: String,
         val default: Boolean,
-        val sample: String
+        val sample: String,
+        /** False for options that act in the world but draw nothing on the HUD. */
+        val inHud: Boolean = true
     )
 
     /** Order here is the order the HUD is drawn in (must match SEGMENTS order in main.js). */
@@ -60,7 +67,10 @@ object PackConfig {
         Toggle("armor", "pack_armor", "Armor durability", false, "§fArmor H:100% C:50% L:-- B:90%"),
         Toggle("speed", "pack_speed", "Speed (blocks/second)", false, "§fSpeed 4.3 b/s"),
         Toggle("time", "pack_time", "In-game time and day", false, "§f09:00 §7Day 5"),
-        Toggle("combo", "pack_combo", "Hit / combo counter", true, "§cCombo: 3 §7(best 5) §4✦ HIT -4.0")
+        Toggle("waypoint", "pack_waypoint", "Nearest waypoint (set in-game, see below)", false, "§aBase §f120m §7FR"),
+        Toggle("diag", "pack_diag", "Diagnostics: world TPS and nearby entities", false, "§7TPS 20.0 §8| §7Entities 12"),
+        Toggle("combo", "pack_combo", "Hit / combo counter", true, "§cCombo: 3 §7(best 5) §4✦ HIT -4.0"),
+        Toggle("fullbright", "pack_fullbright", "Fullbright (night vision, worlds you play locally)", false, "", inHud = false)
     )
 
     /** Minecraft colour code character to display name. */
@@ -146,8 +156,53 @@ object PackConfig {
         entryName.startsWith("fogs/") -> o.clearFog
         entryName.startsWith("ui/") -> o.blackInventory
         entryName.startsWith("texts/") -> o.loadingText
+        entryName.startsWith("textures/") -> o.logo
         else -> true
     }
+
+    enum class Compat { MATCH, SAME_SERIES, DIFFERENT, UNKNOWN }
+
+    private fun versionNumbers(v: String?): List<Int> =
+        (v ?: "").trim().split('.').map { part -> part.takeWhile { it.isDigit() } }
+            .takeWhile { it.isNotEmpty() }.map { it.toInt() }
+
+    /** Compares an installed Minecraft version name with [target] (exact, same x.y series, other). */
+    fun compareVersion(installed: String?, target: String = TARGET_MINECRAFT): Compat {
+        val a = versionNumbers(installed)
+        val b = versionNumbers(target)
+        if (a.size < 2 || b.size < 2) return Compat.UNKNOWN
+        val n = maxOf(a.size, b.size)
+        fun pad(l: List<Int>) = l + List(n - l.size) { 0 }
+        return when {
+            pad(a) == pad(b) -> Compat.MATCH
+            a[0] == b[0] && a[1] == b[1] -> Compat.SAME_SERIES
+            else -> Compat.DIFFERENT
+        }
+    }
+
+    enum class Support { IMPLEMENTED, NOT_POSSIBLE }
+
+    data class Feature(val name: String, val support: Support, val how: String)
+
+    /** What this client really does, and what its architecture cannot do (with the reason). */
+    val FEATURES: List<Feature> = listOf(
+        Feature("Coordinates, dimension, facing, Nether conversion", Support.IMPLEMENTED, "Behavior pack HUD (action bar)"),
+        Feature("Target block and entity info, reach distance", Support.IMPLEMENTED, "Behavior pack HUD"),
+        Feature("Hit indicator and combo counter", Support.IMPLEMENTED, "Behavior pack HUD (melee hits you land)"),
+        Feature("Health, held item, armor durability, speed, time", Support.IMPLEMENTED, "Behavior pack HUD"),
+        Feature("Waypoints with distance and direction", Support.IMPLEMENTED, "Behavior pack, saved in the world; set with /scriptevent"),
+        Feature("Fullbright", Support.IMPLEMENTED, "Night-vision effect; only in worlds you play locally, not on servers"),
+        Feature("World TPS and nearby entity count", Support.IMPLEMENTED, "Behavior pack diagnostics (not FPS)"),
+        Feature("Clear water/lava fog, black inventory, loading text, menu logo", Support.IMPLEMENTED, "Visuals resource pack"),
+        Feature("Module settings and persistence, pack building", Support.IMPLEMENTED, "Launcher"),
+        Feature("FPS counter", Support.NOT_POSSIBLE, "Not exposed to packs; needs native code inside Minecraft"),
+        Feature("CPS counter, keystrokes", Support.NOT_POSSIBLE, "Input is not exposed to packs; needs native code"),
+        Feature("Ping indicator", Support.NOT_POSSIBLE, "Not exposed to packs; needs native code"),
+        Feature("Hitbox display, block outline", Support.NOT_POSSIBLE, "Drawn by the engine; needs native code"),
+        Feature("Zoom, perspective control", Support.NOT_POSSIBLE, "Camera FOV is not controllable by a stable pack API"),
+        Feature("Movable/resizable HUD, minimap, custom crosshair", Support.NOT_POSSIBLE, "Action bar has a fixed position; crosshair needs a copy of Mojang's texture atlas"),
+        Feature("Auto-activating packs", Support.NOT_POSSIBLE, "Android 11+ blocks apps from writing Minecraft's data folder")
+    )
 
     /** Text for the HUD editor preview, using Minecraft colour codes. */
     fun sampleLine(
@@ -159,7 +214,7 @@ object PackConfig {
         val a = validAccent(accent)
         val n = sanitizeName(name)
         val parts = TOGGLES
-            .filter { values[it.jsKey] ?: it.default }
+            .filter { it.inHud && (values[it.jsKey] ?: it.default) }
             .map { it.sample.replace("{A}", a).replace("{NAME}", n) }
         return parts.joinToString(if (multiline) "\n" else " §8| ")
     }

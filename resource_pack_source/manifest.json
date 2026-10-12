@@ -2,11 +2,11 @@
   "format_version": 2,
   "header": {
     "name": "Infinity's Client • Visuals",
-    "description": "Clear water and lava fog, solid black inventory background and branded loading screens.",
+    "description": "Clear water and lava fog, solid black inventory, branded loading screens and menu logo.",
     "uuid": "5d1f3e0a-7b64-4c2e-9a18-3f0c6b2d8e41",
     "version": [
       1,
-      0,
+      1,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "a2c94d77-1e5b-4f86-b3d0-6e9f1c7a5b28",
       "version": [
         1,
-        0,
+        1,
         0
       ]
     }

@@ -105,7 +105,8 @@ class MainActivity : AppCompatActivity() {
     private fun resourceOptions(): PackConfig.ResourceOptions = PackConfig.ResourceOptions(
         clearFog = prefs.getBoolean(PackConfig.PREF_RES_FOG, true),
         blackInventory = prefs.getBoolean(PackConfig.PREF_RES_INVENTORY, true),
-        loadingText = prefs.getBoolean(PackConfig.PREF_RES_LOADING, true)
+        loadingText = prefs.getBoolean(PackConfig.PREF_RES_LOADING, true),
+        logo = prefs.getBoolean(PackConfig.PREF_RES_LOGO, true)
     )
 
     private fun refreshTicks(): Int =
@@ -126,6 +127,7 @@ class MainActivity : AppCompatActivity() {
             else "Not detected. Install Minecraft Bedrock to use PLAY."
         )
         addButton("▶   PLAY MINECRAFT") { launchMinecraft() }
+        addButton("✔   STATUS & FEATURES") { showStatus() }
         addButton("✦   CLIENT MENU") { showClientMenu() }
         addButton("▦   HUD EDITOR") { showHudEditor() }
         addButton("🎨   VISUALS PACK") { showVisualsPack() }
@@ -241,6 +243,37 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun showStatus() {
+        createPage("STATUS & FEATURES", "What is installed, and what this client really does.")
+        addButton("←   BACK TO HOME") { showHome() }
+        val mc = installedMinecraftVersion()
+        val compat = PackConfig.compareVersion(mc)
+        addPanelText(
+            "MINECRAFT",
+            when {
+                mc == null -> "Not detected. Install Minecraft Bedrock from Google Play first."
+                compat == PackConfig.Compat.MATCH -> "Version $mc matches the target (${PackConfig.TARGET_MINECRAFT})."
+                compat == PackConfig.Compat.SAME_SERIES -> "Version $mc is in the same series as the target (${PackConfig.TARGET_MINECRAFT}). The packs target stable script API 2.0.0, so they should work, but this is untested."
+                compat == PackConfig.Compat.DIFFERENT -> "Version $mc differs from the target (${PackConfig.TARGET_MINECRAFT}). Packs may not load; this is untested."
+                else -> "Version $mc detected; could not compare it with the target (${PackConfig.TARGET_MINECRAFT})."
+            }
+        )
+        addPanelText(
+            "PACK INSTALLATION",
+            "Android 11+ stops apps from writing into Minecraft's data folder, so this launcher cannot install or activate packs by itself. " +
+                "Import a pack with the buttons here, then activate it once in Minecraft: behavior packs per world, resource packs under Settings → Global Resources. " +
+                "Activated global resources stay active between launches."
+        )
+        PackConfig.FEATURES.forEach { f ->
+            val mark = if (f.support == PackConfig.Support.IMPLEMENTED) "✔" else "✘"
+            addPanelText("$mark  ${f.name}".uppercase(), f.how)
+        }
+        addText(
+            "✔ = implemented in the packs this launcher builds. Effects inside Minecraft depend on your game version and are not verified by the launcher. ✘ = not possible without native code injected into Minecraft, which this project does not include.",
+            12f, muted, top = 4
+        )
+    }
+
     private fun showVisualsPack() {
         createPage("VISUALS PACK", "Resource pack: fog, inventory background and loading screens.")
         addButton("←   BACK TO HOME") { showHome() }
@@ -249,6 +282,7 @@ class MainActivity : AppCompatActivity() {
             "• Clear water and lava fog in every biome.\n" +
                 "• Solid black background behind the inventory (instead of the see-through world).\n" +
                 "• Loading-screen titles carry your client name.\n" +
+                "• Your client name replaces the Minecraft logo image on the title and pause screens (if your Minecraft version still draws those with resource packs).\n" +
                 "• The pack shows your client name in Minecraft's resource pack list.\n\n" +
                 "Import it, then activate it under Settings → Global Resources (all worlds) or a world's Resource Packs. " +
                 "Servers that send their own resource pack may override it. The launcher cannot test these in-game effects."
@@ -257,6 +291,7 @@ class MainActivity : AppCompatActivity() {
         addSwitch("Clear water and lava fog", PackConfig.PREF_RES_FOG, true)
         addSwitch("Solid black inventory background", PackConfig.PREF_RES_INVENTORY, true)
         addSwitch("Client name on loading screens", PackConfig.PREF_RES_LOADING, true)
+        addSwitch("Client logo on the main menu (replaces the Minecraft logo image)", PackConfig.PREF_RES_LOGO, true)
         addButton("IMPORT / UPDATE VISUALS PACK") { importVisualsPack() }
         addButton("SAVE VISUALS PACK TO DOWNLOADS") { saveVisualsPackToDownloads() }
         addText(
@@ -433,7 +468,7 @@ class MainActivity : AppCompatActivity() {
     /** The visuals resource pack with only the chosen parts included. */
     private fun buildVisualsPack(): File {
         val options = resourceOptions()
-        require(options.clearFog || options.blackInventory || options.loadingText) {
+        require(options.clearFog || options.blackInventory || options.loadingText || options.logo) {
             "Turn on at least one visuals option first"
         }
         val name = clientName()
@@ -443,6 +478,8 @@ class MainActivity : AppCompatActivity() {
                 entry == "manifest.json" ->
                     PackConfig.renameManifest(bytes.toString(Charsets.UTF_8), PackConfig.RESOURCE_SUFFIX, name)
                         .toByteArray(Charsets.UTF_8)
+                entry == "textures/ui/title.png" && name != PackConfig.DEFAULT_CLIENT_NAME ->
+                    try { LogoRenderer.render(name) } catch (_: Exception) { bytes }
                 entry.startsWith("texts/") && entry.endsWith(".lang") ->
                     PackConfig.fillLangTemplate(bytes.toString(Charsets.UTF_8), name)
                         .toByteArray(Charsets.UTF_8)

@@ -64,7 +64,7 @@ class PackConfigTest {
     fun segmentOrderMatchesPreviewOrder() {
         val js = shippedScript()
         val segmentKeys = Regex("^  \\[\"(\\w+)\", ", RegexOption.MULTILINE).findAll(js).map { it.groupValues[1] }.toList()
-        assertEquals(PackConfig.TOGGLES.map { it.jsKey }, segmentKeys)
+        assertEquals(PackConfig.TOGGLES.filter { it.inHud }.map { it.jsKey }, segmentKeys)
     }
 
     @Test
@@ -122,15 +122,15 @@ class PackConfigTest {
 
     @Test
     fun resourcePackOptionsSelectEntries() {
-        val all = PackConfig.ResourceOptions(true, true, true)
-        val none = PackConfig.ResourceOptions(false, false, false)
-        for (name in listOf("fogs/default_fog_setting.json", "ui/inventory_screen.json", "texts/en_US.lang")) {
+        val all = PackConfig.ResourceOptions(true, true, true, true)
+        val none = PackConfig.ResourceOptions(false, false, false, false)
+        for (name in listOf("fogs/default_fog_setting.json", "ui/inventory_screen.json", "texts/en_US.lang", "textures/ui/title.png")) {
             assertTrue(PackConfig.includeResourceEntry(name, all))
             assertFalse(PackConfig.includeResourceEntry(name, none))
         }
         assertTrue(PackConfig.includeResourceEntry("manifest.json", none))
         assertTrue(PackConfig.includeResourceEntry("pack_icon.png", none))
-        assertFalse(PackConfig.includeResourceEntry("ui/inventory_screen.json", PackConfig.ResourceOptions(true, false, true)))
+        assertFalse(PackConfig.includeResourceEntry("ui/inventory_screen.json", PackConfig.ResourceOptions(true, false, true, true)))
     }
 
     @Test
@@ -140,6 +140,11 @@ class PackConfigTest {
         assertTrue(entries.containsKey("pack_icon.png"))
         assertTrue(entries.containsKey("ui/inventory_screen.json"))
         assertTrue(entries.containsKey("ui/inventory_screen_pocket.json"))
+        val logo = entries["textures/ui/title.png"]!!
+        assertEquals(listOf(0x89, 0x50, 0x4E, 0x47), logo.take(4).map { it.toInt() and 0xFF })
+        fun int(o: Int) = ((logo[o].toInt() and 0xFF) shl 24) or ((logo[o + 1].toInt() and 0xFF) shl 16) or
+            ((logo[o + 2].toInt() and 0xFF) shl 8) or (logo[o + 3].toInt() and 0xFF)
+        assertEquals(1768, int(16)); assertEquals(333, int(20))
         val fogs = entries.filterKeys { it.startsWith("fogs/") }
         assertTrue(fogs.size >= 70)
         for ((name, bytes) in fogs) {
@@ -160,5 +165,25 @@ class PackConfigTest {
     fun sampleLineUsesClientName() {
         val values = PackConfig.TOGGLES.associate { it.jsKey to (it.jsKey == "brand") }
         assertEquals("§dNova", PackConfig.sampleLine(values, "d", false, "Nova"))
+    }
+
+    @Test
+    fun versionComparison() {
+        assertEquals(PackConfig.Compat.MATCH, PackConfig.compareVersion("1.26.33.1"))
+        assertEquals(PackConfig.Compat.MATCH, PackConfig.compareVersion("1.26.33.1-beta"))
+        assertEquals(PackConfig.Compat.SAME_SERIES, PackConfig.compareVersion("1.26.33"))
+        assertEquals(PackConfig.Compat.SAME_SERIES, PackConfig.compareVersion("1.26.60.2"))
+        assertEquals(PackConfig.Compat.DIFFERENT, PackConfig.compareVersion("1.21.80.3"))
+        assertEquals(PackConfig.Compat.UNKNOWN, PackConfig.compareVersion(null))
+        assertEquals(PackConfig.Compat.UNKNOWN, PackConfig.compareVersion("unknown"))
+    }
+
+    @Test
+    fun featureListIsHonest() {
+        assertTrue(PackConfig.FEATURES.any { it.support == PackConfig.Support.IMPLEMENTED })
+        for (f in PackConfig.FEATURES.filter { it.support == PackConfig.Support.NOT_POSSIBLE }) {
+            assertTrue("${f.name} needs a reason", f.how.length > 10)
+        }
+        assertTrue(PackConfig.TOGGLES.any { it.jsKey == "fullbright" && !it.inHud })
     }
 }

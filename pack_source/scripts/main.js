@@ -9,14 +9,16 @@ const { world, system } = mc;
 const CONFIG = {
   brand: true, coords: true, facing: false, dimension: true, nether: false,
   target: true, reach: true, entity: true, health: false, held: false,
-  armor: false, speed: false, time: false, combo: true,
+  armor: false, speed: false, time: false, waypoint: false, diag: false, combo: true,
+  fullbright: false,
   accent: "d", multiline: false, interval: 2, name: "Infinity's Client"
 };
 // INFINITY_CONFIG_END
 
 const TOGGLE_KEYS = [
   "brand", "coords", "facing", "dimension", "nether", "target", "reach",
-  "entity", "health", "held", "armor", "speed", "time", "combo"
+  "entity", "health", "held", "armor", "speed", "time", "waypoint", "diag", "combo",
+  "fullbright"
 ];
 
 const COMBO_WINDOW_TICKS = 40; // 2 seconds without a hit ends the combo
@@ -28,10 +30,126 @@ const runtime = { ...CONFIG, enabled: true };
 runtime.name = String(CONFIG.name ?? "Infinity's Client");
 const state = new Map();
 
+// ---- Waypoints (stored in the world, so they persist) ---------------------------------
+
+const WAYPOINT_KEY = "infinity:waypoints";
+const MAX_WAYPOINTS = 20;
+let waypoints = [];
+let waypointsLoaded = false;
+
+function loadWaypoints() {
+  try {
+    const raw = world.getDynamicProperty(WAYPOINT_KEY);
+    const list = typeof raw === "string" ? JSON.parse(raw) : [];
+    waypoints = Array.isArray(list) ? list : [];
+    waypointsLoaded = true;
+  } catch (_error) {
+    waypoints = [];
+  }
+}
+
+function saveWaypoints() {
+  try {
+    world.setDynamicProperty(WAYPOINT_KEY, JSON.stringify(waypoints));
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function handleWaypointCommand(event, reply) {
+  if (!waypointsLoaded) loadWaypoints();
+  const parts = String(event.message ?? "").trim().split(/\s+/);
+  const action = (parts.shift() ?? "").toLowerCase();
+  const name = parts.join(" ").slice(0, 16);
+  const src = event.sourceEntity;
+  if (action === "add") {
+    if (!name) return reply("Use: /scriptevent infinity:waypoint add <name>");
+    if (!src || !src.location || !src.dimension) return reply("Run this command as a player.");
+    if (waypoints.length >= MAX_WAYPOINTS && !waypoints.some((w) => w.n.toLowerCase() === name.toLowerCase())) {
+      return reply(`Waypoint limit (${MAX_WAYPOINTS}) reached. Remove one first.`);
+    }
+    waypoints = waypoints.filter((w) => w.n.toLowerCase() !== name.toLowerCase());
+    waypoints.push({
+      n: name, d: src.dimension.id,
+      x: Math.floor(src.location.x), y: Math.floor(src.location.y), z: Math.floor(src.location.z)
+    });
+    const saved = saveWaypoints();
+    return reply(`Waypoint '${name}' set at ${waypoints.at(-1).x} ${waypoints.at(-1).y} ${waypoints.at(-1).z}` +
+      (saved ? "" : " (could not be saved to the world)"));
+  }
+  if (action === "remove") {
+    const before = waypoints.length;
+    waypoints = waypoints.filter((w) => w.n.toLowerCase() !== name.toLowerCase());
+    saveWaypoints();
+    return reply(before === waypoints.length ? `No waypoint named '${name}'.` : `Removed '${name}'.`);
+  }
+  if (action === "clear") {
+    waypoints = [];
+    saveWaypoints();
+    return reply("All waypoints removed.");
+  }
+  if (action === "list") {
+    if (!waypoints.length) return reply("No waypoints yet. Use: /scriptevent infinity:waypoint add <name>");
+    for (const w of waypoints) reply(`${w.n}: ${w.x} ${w.y} ${w.z} (${dimensionLabel(w.d)})`);
+    return undefined;
+  }
+  return reply("Use: /scriptevent infinity:waypoint add|remove|list|clear <name>");
+}
+
+// Relative direction of a target: F(ront), FR, R(ight), BR, B(ack), BL, L(eft), FL.
+const DIRECTIONS = ["F", "FR", "R", "BR", "B", "BL", "L", "FL"];
+
+function relativeDirection(playerYaw, dx, dz) {
+  const bearing = (Math.atan2(-dx, dz) * 180) / Math.PI; // yaw 0 = south (+z), 90 = west (-x)
+  const rel = ((bearing - playerYaw + 540) % 360) - 180;
+  const idx = Math.round(rel / 45);
+  return DIRECTIONS[((idx % 8) + 8) % 8];
+}
+
+// ---- Diagnostics and fullbright ----------------------------------------------------
+
+const diag = { lastTick: 0, lastMs: 0, tps: 20, measured: false };
+
+function updateDiagnostics() {
+  try {
+    const nowMs = Date.now();
+    const nowTick = system.currentTick;
+    if (diag.lastMs) {
+      const seconds = (nowMs - diag.lastMs) / 1000;
+      const ticks = nowTick - diag.lastTick;
+      if (seconds > 0 && ticks > 0) {
+        const instant = Math.min(20, ticks / seconds);
+        diag.tps = diag.measured ? diag.tps * 0.7 + instant * 0.3 : instant;
+        diag.measured = true;
+      }
+    }
+    diag.lastMs = nowMs;
+    diag.lastTick = nowTick;
+  } catch (_error) { /* Date unavailable: TPS stays unmeasured */ }
+}
+
+const fullbrightApplied = new Map(); // player id -> tick the effect was last applied
+
+function applyFullbright(player) {
+  if (runtime.fullbright) {
+    const now = system.currentTick;
+    const last = fullbrightApplied.get(player.id);
+    if (last === undefined || now - last >= 200) {
+      // Long duration, refreshed every 10 s so the "about to expire" flicker never shows.
+      player.addEffect("night_vision", 1000, { amplifier: 0, showParticles: false });
+      fullbrightApplied.set(player.id, now);
+    }
+  } else if (fullbrightApplied.has(player.id)) {
+    player.removeEffect("night_vision");
+    fullbrightApplied.delete(player.id);
+  }
+}
+
 function getState(id) {
   let s = state.get(id);
   if (!s) {
-    s = { combo: 0, best: 0, lastHit: -100000, flashUntil: -1, lastDamage: null };
+    s = { combo: 0, best: 0, lastHit: -100000, flashUntil: -1, lastDamage: null, entCount: 0, entTick: -100000 };
     state.set(id, s);
   }
   return s;
@@ -92,6 +210,7 @@ world.afterEvents.entityHurt.subscribe((event) => {
 
 world.afterEvents.playerLeave.subscribe((event) => {
   state.delete(event.playerId);
+  fullbrightApplied.delete(event.playerId);
 });
 
 // ---- HUD segments (each returns a string or null) ---------------------------
@@ -211,6 +330,31 @@ const SEGMENTS = [
     return text;
   }],
 
+  ["waypoint", (p) => {
+    if (!waypointsLoaded) loadWaypoints();
+    const l = p.location;
+    let best = null;
+    for (const w of waypoints) {
+      if (w.d !== p.dimension.id) continue;
+      const dx = w.x + 0.5 - l.x, dz = w.z + 0.5 - l.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (!best || dist < best.dist) best = { w, dx, dz, dist };
+    }
+    if (!best) return null;
+    return `§a${best.w.n} §f${Math.round(best.dist)}m §7${relativeDirection(p.getRotation().y, best.dx, best.dz)}`;
+  }],
+
+  ["diag", (p) => {
+    if (!diag.measured) return null;
+    const s = getState(p.id);
+    const now = system.currentTick;
+    if (now - s.entTick >= 20) {
+      s.entCount = p.dimension.getEntities({ location: p.location, maxDistance: 32 }).length;
+      s.entTick = now;
+    }
+    return `§7TPS ${diag.tps.toFixed(1)} §8| §7Entities ${s.entCount}`;
+  }],
+
   ["combo", (p) => {
     const s = state.get(p.id);
     if (!s) return null;
@@ -246,7 +390,9 @@ function buildLine(player) {
 let clearedWhileDisabled = false;
 
 function tick() {
+  if (runtime.diag) updateDiagnostics();
   for (const player of world.getAllPlayers()) {
+    try { applyFullbright(player); } catch (_error) { /* effects unavailable */ }
     try {
       if (!runtime.enabled) {
         if (!clearedWhileDisabled) player.onScreenDisplay.setActionBar("");
@@ -275,6 +421,8 @@ try {
       } else {
         reply(`${accent()}${runtime.name} §fUse: /scriptevent infinity:hud on|off`);
       }
+    } else if (event.id === "infinity:waypoint") {
+      handleWaypointCommand(event, (msg) => reply(`${accent()}${runtime.name} §f${msg}`));
     } else if (event.id === "infinity:toggle") {
       if (TOGGLE_KEYS.includes(arg)) {
         runtime[arg] = !runtime[arg];
